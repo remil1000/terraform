@@ -273,6 +273,13 @@ The supported built-in functions are:
       `formatlist("instance %v has private ip %v", aws_instance.foo.*.id, aws_instance.foo.*.private_ip)`.
       Passing lists with different lengths to formatlist results in an error.
 
+  * `hostnext(hostcidr, nextnum)` - Takes a host IP address in CIDR notation
+    (like `10.0.10.10/16`) and return the `hostcidr` + `nextnum` IP address
+    For example,
+    `hostnext("10.0.10.10/16", 8)` returns `10.0.10.18`;
+    `hostnext("2607:f298:6051:516c::/64", 31)` returns
+    `2607:f298:6051:516c::1f`.
+
   * `indent(numspaces, string)` - Prepends the specified number of spaces to all but the first
       line of the given multi-line string. May be useful when inserting a multi-line string
       into an already-indented context. The first line is not indented, to allow for the
@@ -419,7 +426,7 @@ The supported built-in functions are:
 
   * `urlencode(string)` - Returns an URL-safe copy of the string.
 
-  * `uuid()` - Returns a random UUID string. This string will change with every invocation of the function, so in order to prevent diffs on every plan & apply, it must be used with the [`ignore_changes`](/docs/configuration/resources.html#ignore-changes) lifecycle attribute.
+  * `uuid()` - Returns a UUID string in RFC 4122 v4 format. This string will change with every invocation of the function, so in order to prevent diffs on every plan & apply, it must be used with the [`ignore_changes`](/docs/configuration/resources.html#ignore-changes) lifecycle attribute.
 
   * `values(map)` - Returns a list of the map values, in the order of the keys
     returned by the `keys` function. This function only works on flat maps and

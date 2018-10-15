@@ -749,6 +749,52 @@ func TestInterpolateFuncCidrSubnet(t *testing.T) {
 	})
 }
 
+func TestInterpolateFuncHostNext(t *testing.T) {
+	testFunction(t, testFunctionConfig{
+		Cases: []testFunctionCase{
+			{
+				`${hostnext("10.0.10.10/16",8)}`,
+				"10.0.10.18",
+				false,
+			},
+			{
+				`${hostnext("2607:f298:6051:516c::/64",31)}`,
+				"2607:f298:6051:516c::1f",
+				false,
+			},
+			{
+				`${hostnext("fe80::1/64",65536)}`,
+				"fe80::1:1",
+				false,
+			},
+			// overflow check, IPv4
+			{
+				`${hostnext("255.255.255.255/24",1)}`,
+				nil,
+				true,
+			},
+			// overflow check, IPv6
+			{
+				`${hostnext("ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff/64",1)}`,
+				nil,
+				true,
+			},
+			// must be CIDR (we don't guess netmask)
+			{
+				`${hostnext("192.168.1.1",1)}`,
+				nil,
+				true,
+			},
+			// arbitrary value shouldn't work
+			{
+				`${hostnext("foo::1/64",1)}`,
+				nil,
+				true,
+			},
+		},
+	})
+}
+
 func TestInterpolateFuncCoalesce(t *testing.T) {
 	testFunction(t, testFunctionConfig{
 		Cases: []testFunctionCase{

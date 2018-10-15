@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"math"
+	"math/big"
 	"net"
 	"net/url"
 	"path/filepath"
@@ -74,6 +75,7 @@ func Funcs() map[string]ast.Function {
 		"cidrhost":     interpolationFuncCidrHost(),
 		"cidrnetmask":  interpolationFuncCidrNetmask(),
 		"cidrsubnet":   interpolationFuncCidrSubnet(),
+		"hostnext":     interpolationFuncHostNext(),
 		"coalesce":     interpolationFuncCoalesce(),
 		"coalescelist": interpolationFuncCoalesceList(),
 		"compact":      interpolationFuncCompact(),
@@ -320,6 +322,54 @@ func interpolationFuncCidrSubnet() ast.Function {
 			}
 
 			return newNetwork.String(), nil
+		},
+	}
+}
+
+// interpolationFuncHostNext implements "nexthost" function providing
+// next incremented IP address for a given host CIDR annotated address
+func interpolationFuncHostNext() ast.Function {
+	return ast.Function{
+		ArgTypes: []ast.Type{
+			ast.TypeString, // host address
+			ast.TypeInt,    // host address increment number
+		},
+		ReturnType: ast.TypeString,
+		Variadic:   false,
+		Callback: func(args []interface{}) (interface{}, error) {
+			hostNum := args[1].(int)
+			host, network, err := net.ParseCIDR(args[0].(string))
+			if err != nil {
+				return nil, fmt.Errorf("invalid CIDR expression: %s", err)
+			}
+
+			// convert net.IP to big.Int then back to []byte slice
+			hostbigint := big.NewInt(0).SetBytes([]byte(host))
+			hostbigint.Add(hostbigint, big.NewInt(int64(hostNum)))
+
+			hostb := hostbigint.Bytes()
+
+			// hostb IP []byte can't grow over base net.IP otherwise we've overflowed
+			if len(hostb) > len(host) {
+				return nil, fmt.Errorf("reached end of IPv6 address space: %s incremented by %d", host.String(), hostNum)
+			}
+
+			// thanks https://stackoverflow.com/a/49847634
+			hostb = append(make([]byte, len(host)-len(hostb)), hostb...)
+
+			nextip := net.IP(hostb)
+
+			// net.IP seems to be 16 bytes whatever the case, we try to
+			// detect if we've change address family after incrementing
+			if host.To4() != nil && nextip.To4() == nil {
+				return nil, fmt.Errorf("reached end of IPv4 address space: %s incremented by %d", host.String(), hostNum)
+			}
+
+			if network.Contains(nextip) {
+				return nextip.String(), nil
+			} else {
+				return nil, fmt.Errorf("nextIP isn't in network anymore: %s not in %s", nextip.String(), network.String())
+			}
 		},
 	}
 }
