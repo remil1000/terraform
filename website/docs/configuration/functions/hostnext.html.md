@@ -1,7 +1,7 @@
 ---
 layout: "functions"
 page_title: "hostnext function"
-sidebar_current: "docs-funcs-ipnet-cidrhost"
+sidebar_current: "docs-funcs-ipnet-hostnext"
 description: |-
   Takes a host IP address in CIDR notation and return the `hostcidr` +
   `nextnum` IP address.
