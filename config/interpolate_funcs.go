@@ -326,7 +326,7 @@ func interpolationFuncCidrSubnet() ast.Function {
 	}
 }
 
-// interpolationFuncHostNext implements "nexthost" function providing
+// interpolationFuncHostNext implements "hostnext" function providing
 // next incremented IP address for a given host CIDR annotated address
 func interpolationFuncHostNext() ast.Function {
 	return ast.Function{
