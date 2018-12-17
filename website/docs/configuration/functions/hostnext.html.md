@@ -16,10 +16,10 @@ return the `hostcidr` + `nextnum` IP address
 hostnext(hostcidr, nextnum)
 ```
 
-`prefix` the host address, must be given in CIDR notation, as defined in
+`hostcidr` the host address, must be given in CIDR notation, as defined in
 [RFC 4632 section 3.1](https://tools.ietf.org/html/rfc4632#section-3.1).
 
-`hostnum` is a whole number
+`nextnum` is a whole number
 
 ## Examples
 
