@@ -1,30 +1,86 @@
-## 0.12.0-beta1 (Unreleased)
+## 0.12.0-beta (unreleased)
 
 IMPROVEMENTS:
 
-* command/state: Update and enable the `state show` command [GH-19200]
+* plugins: Plugin RPC connection is now authenticated [GH-19629]
+* backend/azurerm: Support for authenticating using the Azure CLI [GH-19465]
+* backend/remote: Return detailed version (in)compatibility information [GH-19659]
+* backend/s3: Support DynamoDB, IAM, and STS endpoint configurations [GH-19571]
+* core: Enhance service discovery error handling and messaging [GH-19589]
+* core: Add support to retrieve version constraints to service discovery [GH-19647]
 
 BUG FIXES:
 
-* helper/schema: Prevent the insertion of empty diff values when converting legacy diffs [GH-19253]
-* core: Fix inconsistent plans when replacing instances. [GH-19233]
-* core: Correct handling of unknown values in module outputs during planning and final resolution of them during apply. [GH-19237]
+* connection/winrm: Set the correct default port when HTTPS is used [GH-19540]
+* plugins: GRPC plugins shutdown correctly when Close is called [GH-19629]
+* backend/local: Avoid rendering data sources on destroy [GH-19613]
+* backend/local: Fix incorrect destroy/update count on apply [GH-19610]
+* backend/local: Render CBD replacement (+/-) correctly [GH-19642]
+* command/format: Fix rendering of nested blocks during update [GH-19611]
+* command/format: Fix rendering of force-new updates [GH-19609]
+* helper/schema: Fix setting a set in a list [GH-19552]
+
+## 0.12.0-alpha4 (December 7, 2018)
+NOTES:
+No changes to terraform; this release is only necessary to fix an incorrect version of the aws provider bundled in alpha3
+
+## 0.12.0-alpha3 (December 6, 2018)
+
+BACKWARDS INCOMPATIBILITIES / NOTES:
+* command: Remove `-module-depth` flag from plan, apply, and show. This flag was not widely used and the various updates and improvements to cli output should remove the need for this flag. ([#19267](https://github.com/hashicorp/terraform/issues/19267))
+* plugins: The protobuf/grpc package name for the provider protocol was changed from `proto` to `tfplugin5` in preparation for future protocol versioning. This means that plugin binaries built for alpha1 and alpha2 are no longer compatible and will need to be rebuilt. ([#19393](https://github.com/hashicorp/terraform/issues/19393))
+
+IMPROVEMENTS:
+
+* dependencies: upgrading to v21.3.0 of `github.com/Azure/azure-sdk-for-go` ([#19414](https://github.com/hashicorp/terraform/issues/19414))
+* dependencies: upgrading to v10.15.4 of `github.com/Azure/go-autorest` ([#19414](https://github.com/hashicorp/terraform/issues/19414))
+* backend/azurerm: Fixing a bug where locks couldn't be unlocked ([#19441](https://github.com/hashicorp/terraform/issues/19441))
+* backend/azurerm: Support for authenticating via Managed Service Identity ([#19433](https://github.com/hashicorp/terraform/issues/19433))
+* backend/azurerm: Support for authenticating using a SAS Token ([#19440](https://github.com/hashicorp/terraform/issues/19440))
+* backend/azurerm: Support for custom Resource Manager Endpoints ([#19460](https://github.com/hashicorp/terraform/issues/19460))
+* backend/azurerm: Using the proxy from the environment when set ([#19414](https://github.com/hashicorp/terraform/issues/19414))
+* backend/azurerm: Deprecating the `arm_` prefix for keys used in the backend configuration ([#19448](https://github.com/hashicorp/terraform/issues/19448))
+* command/state: Update and enable the `state show` command ([#19200](https://github.com/hashicorp/terraform/issues/19200))
+* command/state: Lock the state when pushing a new state using `state push` ([#19411](https://github.com/hashicorp/terraform/issues/19411))
+* backend/remote: Implement the remote enhanced backend ([#19299](https://github.com/hashicorp/terraform/issues/19299))
+* backend/remote: Support remote state only usage by dynamically falling back to the local backend ([#19378](https://github.com/hashicorp/terraform/issues/19378))
+* backend/remote: Also show Sentinel policy output when there are no changes ([#19403](https://github.com/hashicorp/terraform/issues/19403))
+* backend/remote: Add support for the `console`, `graph` and `import` commands ([#19464](https://github.com/hashicorp/terraform/issues/19464))
+* backend/remote: Use the new force-unlock API ([#19520](https://github.com/hashicorp/terraform/issues/19520))
+* plugin/discovery: Use signing keys from the Terraform Registry when downloading providers. ([#19389](https://github.com/hashicorp/terraform/issues/19389))
+* plugin/discovery: Use default `-` namespace alias when fetching available providers from Terraform Registry. ([#19494](https://github.com/hashicorp/terraform/issues/19494))
+
+BUG FIXES:
+
+* command/format: Fix rendering of attribute-agnostic diagnostics ([#19453](https://github.com/hashicorp/terraform/issues/19453))
+* core: Fix inconsistent plans when replacing instances. ([#19233](https://github.com/hashicorp/terraform/issues/19233))
+* core: Correct handling of unknown values in module outputs during planning and final resolution of them during apply. ([#19237](https://github.com/hashicorp/terraform/issues/19237))
+* core: Correct handling of wildcard dependencies when upgrading states ([#19374](https://github.com/hashicorp/terraform/issues/19374))
+* core: Fix missing validation of references to non-existing child modules, which was previously resulting in a panic. ([#19487](https://github.com/hashicorp/terraform/issues/19487))
+* helper/schema: Don't re-apply schema StateFuncs during apply ([#19536](https://github.com/hashicorp/terraform/issues/19536))
+* helper/schema: Allow providers to continue setting and empty string to a default bool value ([#19521](https://github.com/hashicorp/terraform/issues/19521))
+* helper/schema: Prevent the insertion of empty diff values when converting legacy diffs ([#19253](https://github.com/hashicorp/terraform/issues/19253))
+* helper/schema: Fix timeout parsing during Provider.Diff (plan) ([#19286](https://github.com/hashicorp/terraform/issues/19286))
+* helper/schema: Provider arguments set from environment variables now work correctly again, after regressing in the prior 0.12 alphas. ([#19478](https://github.com/hashicorp/terraform/issues/19478))
+* helper/schema: For schema attributes that have `Elem` as a nested `schema.Resource`, setting `Optional: true` now forces `MinItems` to be zero, thus mimicking a previously-undocumented behavior that some providers were relying on. ([#19478](https://github.com/hashicorp/terraform/issues/19478))
+* helper/schema: Always propagate NewComputed for previously zero value primitive type attributes ([#19548](https://github.com/hashicorp/terraform/issues/19548))
+* backend/remote: Fix issues with uploaded configs that contain symlinks ([#19520](https://github.com/hashicorp/terraform/issues/19520))
 
 ## 0.12.0-alpha2 (October 30, 2018)
 
 IMPROVEMENTS:
 
-* backend/s3: Support `credential_source` if specified in AWS configuration file [GH-19190]
-* command/state: Update and enable the `state mv` command [GH-19197]
-* command/state: Update and enable the `state rm` command [GH-19178]
+* backend/s3: Support `credential_source` if specified in AWS configuration file ([#19190](https://github.com/hashicorp/terraform/issues/19190))
+* command/state: Update and enable the `state mv` command ([#19197](https://github.com/hashicorp/terraform/issues/19197))
+* command/state: Update and enable the `state rm` command ([#19178](https://github.com/hashicorp/terraform/issues/19178))
 
 BUG FIXES:
 
-* lang: Fix crash in `lookup` function [GH-19161]
-* Hostnames inside module registry source strings may now contain segments that begin with digits, due to an upstream fix in the IDNA parsing library. [GH-18039]
-* helper/schema: Fix panic when null values appear for nested blocks [GH-19201]
-* helper/schema: Restore handling of the special "timeouts" block in certain resource types. [GH-19222]
-* helper/schema: Restore handling of DiffSuppressFunc and StateFunc. [GH-19226]
+* lang: Fix crash in `lookup` function ([#19161](https://github.com/hashicorp/terraform/issues/19161))
+* Hostnames inside module registry source strings may now contain segments that begin with digits, due to an upstream fix in the IDNA parsing library. ([#18039](https://github.com/hashicorp/terraform/issues/18039))
+* helper/schema: Fix panic when null values appear for nested blocks ([#19201](https://github.com/hashicorp/terraform/issues/19201))
+* helper/schema: Restore handling of the special "timeouts" block in certain resource types. ([#19222](https://github.com/hashicorp/terraform/issues/19222))
+* helper/schema: Restore handling of DiffSuppressFunc and StateFunc. ([#19226](https://github.com/hashicorp/terraform/issues/19226))
 
 ## 0.12.0-alpha1 (October 19, 2018)
 
@@ -66,11 +122,11 @@ The overall theme for the v0.12 release is configuration language fixes and impr
 
 * **`jsondecode` and `csvdecode` interpolation functions:** Due to the richer type system in the new configuration language implementation, we can now offer functions for decoding serialization formats. `jsondecode` is the opposite of `jsonencode`, while `csvdecode` provides a way to load in lists of maps from a compact tabular representation.
 
-* **New Function:** `fileexists` [GH-19086]
+* **New Function:** `fileexists` ([#19086](https://github.com/hashicorp/terraform/issues/19086))
 
 IMPROVEMENTS:
 
-* `terraform validate` now accepts an argument `-json` which produces machine-readable output. Please refer to the documentation for this command for details on the format and some caveats that consumers must consider when using this interface. [GH-17539]
+* `terraform validate` now accepts an argument `-json` which produces machine-readable output. Please refer to the documentation for this command for details on the format and some caveats that consumers must consider when using this interface. ([#17539](https://github.com/hashicorp/terraform/issues/17539))
 
 * The JSON-based variant of the Terraform language now has a more tightly-specified and reliable mapping to the native syntax variant. In prior versions, certain Terraform configuration features did not function as expected or were not usable via the JSON-based forms. For more information, see [the _JSON Configuration Syntax_ documentation](./website/docs/configuration/syntax-json.html.md).
 
@@ -94,6 +150,18 @@ Since v0.12.0-alpha1 is an experimental build, this list is certainly incomplete
 
 In addition to the high-level known issues above, please refer also to [the GitHub issues for this alpha release](https://github.com/hashicorp/terraform/issues?utf8=%E2%9C%93&q=is%3Aissue+label%3Av0.12-alpha1+). This list will be updated with new reports throughout the alpha1 period, including workarounds where possible to allow for continued testing. (Issues shown in that list as closed indicate that the problem has been fixed for a future release; it is probably still present in the alpha1 release.)
 
+## 0.11.11 (December 14, 2018)
+
+IMPROVEMENTS:
+
+* backend/remote: Return detailed version (in)compatibility information ([#19660](https://github.com/hashicorp/terraform/issues/19660))
+* core: Enhance service discovery error handling and messaging ([#19660](https://github.com/hashicorp/terraform/issues/19660))
+* core: Add support to retrieve version constraints to service discovery ([#19660](https://github.com/hashicorp/terraform/issues/19660))
+
+BUG FIXES:
+
+* backend/remote: Fix symlink issues and Windows support when uploading configurations ([#19573](https://github.com/hashicorp/terraform/issues/19573))
+
 ## 0.11.10 (October 23, 2018)
 
 BUG FIXES:
@@ -104,7 +172,7 @@ BUG FIXES:
 
 IMPROVEMENTS:
 
-* backend/remote: Also show policy check output when running a plan [GH-19088]
+* backend/remote: Also show policy check output when running a plan ([#19088](https://github.com/hashicorp/terraform/issues/19088))
 
 ## 0.11.9-beta1 (October 15, 2018)
 
@@ -140,7 +208,7 @@ BUG FIXES:
 
 NEW FEATURES:
 
-* **New `remote` backend**: Inital release of the `remote` backend for use with Terraform Enterprise and Private Terraform Enterprise [[#18596](https://github.com/hashicorp/terraform/issues/18596)]
+* **New `remote` backend**: Inital release of the `remote` backend for use with Terraform Enterprise and Private Terraform Enterprise ([#18596](https://github.com/hashicorp/terraform/issues/18596))
 
 IMPROVEMENTS:
 
