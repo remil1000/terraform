@@ -1,16 +1,27 @@
 ## 0.12.0-beta (unreleased)
 
+BACKWARDS INCOMPATIBILITIES / NOTES:
+
+* config: `path.module` and `path.root` now return paths with forward slashes on all operating systems, including Windows. This avoids the need to write constructed paths differently for Windows vs. other operating systems, but any existing constructed paths containing backslashes for Windows must now be rewritten to use forward slashes, like `"${path.module}/foo/bar"`. [GH-19708]
+* config: `path.module` and `path.root` are now relative to the current working directory, rather than absolute as before. This avoids including a host-specific absolute path prefix on constructed paths, but may show as a diff after upgrade in situations where a constructed path is included in a resource attribute value. [GH-19708]
+
 IMPROVEMENTS:
 
 * plugins: Plugin RPC connection is now authenticated [GH-19629]
 * backend/azurerm: Support for authenticating using the Azure CLI [GH-19465]
 * backend/remote: Return detailed version (in)compatibility information [GH-19659]
 * backend/s3: Support DynamoDB, IAM, and STS endpoint configurations [GH-19571]
+* backend/s3: Support for the new AWS region `eu-north-1` [GH-19651]
 * core: Enhance service discovery error handling and messaging [GH-19589]
 * core: Add support to retrieve version constraints to service discovery [GH-19647]
+* core: Validate provisioner connection blocks, and mark host field as required [GH-19707]
+* command/show: Add support for machine readable output via a `-json` argument to `terraform show` [GH-19687] 
 
 BUG FIXES:
 
+* config: Detect and reject self-referencing local values [GH-19706]
+* config: Accept and ignore UTF-8 byte-order mark for configuration files [GH-19715]
+* config: More helpful error message for a situation that may arise on upgrade from Terraform 0.11 or earlier [GH-19727]
 * connection/winrm: Set the correct default port when HTTPS is used [GH-19540]
 * plugins: GRPC plugins shutdown correctly when Close is called [GH-19629]
 * backend/local: Avoid rendering data sources on destroy [GH-19613]
@@ -18,7 +29,11 @@ BUG FIXES:
 * backend/local: Render CBD replacement (+/-) correctly [GH-19642]
 * command/format: Fix rendering of nested blocks during update [GH-19611]
 * command/format: Fix rendering of force-new updates [GH-19609]
+* command/providers: Support `-no-color` argument to `terraform providers`, which was previously incorrectly returning an error [GH-19671]
 * helper/schema: Fix setting a set in a list [GH-19552]
+* core: Correct errors when referencing a resource containing count without an index [GH-19674]
+* core: Fix occasional invalid provider errors when scaling down a counted datasource [GH-19676]
+* core: Fix crash when applying a stored plan containing destroys [GH-19726]
 
 ## 0.12.0-alpha4 (December 7, 2018)
 NOTES:

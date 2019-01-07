@@ -1,6 +1,6 @@
 ---
 layout: "functions"
-page_title: "jsondecode function"
+page_title: "jsondecode - Functions - Configuration Language"
 sidebar_current: "docs-funcs-encoding-jsondecode"
 description: |-
   The jsondecode function decodes a JSON string into a representation of its
@@ -15,7 +15,7 @@ of the result of decoding that string.
 The JSON encoding is defined in [RFC 7159](https://tools.ietf.org/html/rfc7159).
 
 This function maps JSON values to
-[Terraform language values](/docs/configuration/expressions.html#types-and-values)
+[Terraform language values](./expressions.html#types-and-values)
 in the following way:
 
 | JSON type | Terraform type                                               |
