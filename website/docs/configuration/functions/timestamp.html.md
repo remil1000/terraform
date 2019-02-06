@@ -9,6 +9,10 @@ description: |-
 
 # `timestamp` Function
 
+-> **Note:** This page is about Terraform 0.12 and later. For Terraform 0.11 and
+earlier, see
+[0.11 Configuration Language: Interpolation Syntax](../../configuration-0-11/interpolation.html).
+
 `timestamp` returns the current date and time.
 
 In the Terraform language, timestamps are conventionally represented as
@@ -33,3 +37,8 @@ taken only once the plan is being applied.
 > timestamp()
 2018-05-13T07:44:12Z
 ```
+
+## Related Functions
+
+* [`formatdate`](./formatdate.html) can convert the resulting timestamp to
+  other date and time formats.

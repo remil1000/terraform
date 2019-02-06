@@ -4,18 +4,30 @@ BACKWARDS INCOMPATIBILITIES / NOTES:
 
 * config: `path.module` and `path.root` now return paths with forward slashes on all operating systems, including Windows. This avoids the need to write constructed paths differently for Windows vs. other operating systems, but any existing constructed paths containing backslashes for Windows must now be rewritten to use forward slashes, like `"${path.module}/foo/bar"`. [GH-19708]
 * config: `path.module` and `path.root` are now relative to the current working directory, rather than absolute as before. This avoids including a host-specific absolute path prefix on constructed paths, but may show as a diff after upgrade in situations where a constructed path is included in a resource attribute value. [GH-19708]
+* tools/terraform-bundle: use the `terraform-bundle` of the same tag as the targeted terraform binary version. This avoids adding complexity to resolve protocol versions across different terraform versions. [GH-20030]
 
 IMPROVEMENTS:
 
+* config: New set-theory functions `sethaselement`, `setunion`, `setintersection`, and `setproduct` for working with set values.
+* config: New type conversion functions `tostring`, `tonumber`, `tobool`, `tolist`, `toset`, and `tomap`. Explicit conversions are rarely required but occasionally useful; use these functions only when necessary.
 * plugins: Plugin RPC connection is now authenticated [GH-19629]
 * backend/azurerm: Support for authenticating using the Azure CLI [GH-19465]
 * backend/remote: Return detailed version (in)compatibility information [GH-19659]
+* backend/remote: Log early to indicate remote execution started [GH-19941]
+* backend/remote: Make sure the correct error is shown when having version incompatibilities [GH-20086]
 * backend/s3: Support DynamoDB, IAM, and STS endpoint configurations [GH-19571]
 * backend/s3: Support for the new AWS region `eu-north-1` [GH-19651]
+* backend/s3: Enhance retry logic and provide `max_retries` configuration to retry attempts [GH-19951]
+* backend/s3: Enhance S3 `NoSuchBucket` error to include additional information [GH-19951]
 * core: Enhance service discovery error handling and messaging [GH-19589]
 * core: Add support to retrieve version constraints to service discovery [GH-19647]
 * core: Validate provisioner connection blocks, and mark host field as required [GH-19707]
-* command/show: Add support for machine readable output via a `-json` argument to `terraform show` [GH-19687] 
+* command/format: Ignore removal of empty strings [GH-19990]
+* command/format: Reduce whitespaces in empty fields [GH-19995]
+* command/format: Render null in dark gray [GH-19616]
+* command/init: Add provider protocol compatibility UI err msg during registry discovery [GH-19976]
+* command/show: Add support for machine readable output via a `-json` argument to `terraform show` [GH-19687]
+* command/state: Use locking when updating states [GH-19939]
 
 BUG FIXES:
 
@@ -29,8 +41,12 @@ BUG FIXES:
 * backend/local: Render CBD replacement (+/-) correctly [GH-19642]
 * command/format: Fix rendering of nested blocks during update [GH-19611]
 * command/format: Fix rendering of force-new updates [GH-19609]
+* command/format: Fix rendering of nested (JSON) object [GH-20071]
+* command/format: Fix rendering of unknown elements in set/map/list [GH-20067]
+* command/init: Fix plugin installer using wrong protocol causing incompatiable API version with plugin [GH-19221]
 * command/providers: Support `-no-color` argument to `terraform providers`, which was previously incorrectly returning an error [GH-19671]
 * helper/schema: Fix setting a set in a list [GH-19552]
+* states/statemgr: Avoid HTML escaping when printing LockInfo [GH-20005]
 * core: Correct errors when referencing a resource containing count without an index [GH-19674]
 * core: Fix occasional invalid provider errors when scaling down a counted datasource [GH-19676]
 * core: Fix crash when applying a stored plan containing destroys [GH-19726]

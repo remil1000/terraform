@@ -673,7 +673,7 @@ func TestNormalizeFlatmapContainers(t *testing.T) {
 	}{
 		{
 			attrs:  map[string]string{"id": "1", "multi.2.set.#": "1", "multi.1.set.#": "0", "single.#": "0"},
-			expect: map[string]string{"id": "1"},
+			expect: map[string]string{"id": "1", "multi.2.set.#": "1"},
 		},
 		{
 			attrs:  map[string]string{"id": "1", "multi.2.set.#": "2", "multi.2.set.1.foo": "bar", "multi.1.set.#": "0", "single.#": "0"},
@@ -681,11 +681,15 @@ func TestNormalizeFlatmapContainers(t *testing.T) {
 		},
 		{
 			attrs:  map[string]string{"id": "78629a0f5f3f164f", "multi.#": "1"},
+			expect: map[string]string{"id": "78629a0f5f3f164f", "multi.#": "1"},
+		},
+		{
+			attrs:  map[string]string{"id": "78629a0f5f3f164f", "multi.#": "0"},
 			expect: map[string]string{"id": "78629a0f5f3f164f"},
 		},
 		{
-			attrs:  map[string]string{"multi.529860700.set.#": "1", "multi.#": "1", "id": "78629a0f5f3f164f"},
-			expect: map[string]string{"id": "78629a0f5f3f164f"},
+			attrs:  map[string]string{"multi.529860700.set.#": "0", "multi.#": "1", "id": "78629a0f5f3f164f"},
+			expect: map[string]string{"id": "78629a0f5f3f164f", "multi.#": "1"},
 		},
 		{
 			attrs:  map[string]string{"set.2.required": "bar", "set.2.list.#": "1", "set.2.list.0": "x", "set.1.list.#": "0", "set.#": "2"},
@@ -707,9 +711,276 @@ func TestNormalizeFlatmapContainers(t *testing.T) {
 		},
 	} {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
-			got := normalizeFlatmapContainers(tc.prior, tc.attrs)
+			got := normalizeFlatmapContainers(tc.prior, tc.attrs, false)
 			if !reflect.DeepEqual(tc.expect, got) {
 				t.Fatalf("expected:\n%#v\ngot:\n%#v\n", tc.expect, got)
+			}
+		})
+	}
+}
+
+func TestNormalizeNullValues(t *testing.T) {
+	for i, tc := range []struct {
+		Src, Dst, Expect cty.Value
+		Plan             bool
+	}{
+		{
+			// The known set value is copied over the null set value
+			Src: cty.ObjectVal(map[string]cty.Value{
+				"set": cty.SetVal([]cty.Value{
+					cty.ObjectVal(map[string]cty.Value{
+						"foo": cty.NullVal(cty.String),
+					}),
+				}),
+			}),
+			Dst: cty.ObjectVal(map[string]cty.Value{
+				"set": cty.NullVal(cty.Set(cty.Object(map[string]cty.Type{
+					"foo": cty.String,
+				}))),
+			}),
+			Expect: cty.ObjectVal(map[string]cty.Value{
+				"set": cty.SetVal([]cty.Value{
+					cty.ObjectVal(map[string]cty.Value{
+						"foo": cty.NullVal(cty.String),
+					}),
+				}),
+			}),
+		},
+		{
+			// The known set value is copied over the null set value
+			Src: cty.ObjectVal(map[string]cty.Value{
+				"set": cty.SetVal([]cty.Value{
+					cty.ObjectVal(map[string]cty.Value{
+						"foo": cty.NullVal(cty.String),
+					}),
+				}),
+			}),
+			Dst: cty.ObjectVal(map[string]cty.Value{
+				"set": cty.NullVal(cty.Set(cty.Object(map[string]cty.Type{
+					"foo": cty.String,
+				}))),
+			}),
+			// If we're only in a plan, we can't compare sets at all
+			Expect: cty.ObjectVal(map[string]cty.Value{
+				"set": cty.NullVal(cty.Set(cty.Object(map[string]cty.Type{
+					"foo": cty.String,
+				}))),
+			}),
+			Plan: true,
+		},
+		{
+			// The empty map is copied over the null map
+			Src: cty.ObjectVal(map[string]cty.Value{
+				"map": cty.MapValEmpty(cty.String),
+			}),
+			Dst: cty.ObjectVal(map[string]cty.Value{
+				"map": cty.NullVal(cty.Map(cty.String)),
+			}),
+			Expect: cty.ObjectVal(map[string]cty.Value{
+				"map": cty.MapValEmpty(cty.String),
+			}),
+		},
+		{
+			// A zero value primitive is copied over a null primitive
+			Src: cty.ObjectVal(map[string]cty.Value{
+				"string": cty.StringVal(""),
+			}),
+			Dst: cty.ObjectVal(map[string]cty.Value{
+				"string": cty.NullVal(cty.String),
+			}),
+			Expect: cty.ObjectVal(map[string]cty.Value{
+				"string": cty.StringVal(""),
+			}),
+		},
+		{
+			// Plan primitives are kept
+			Src: cty.ObjectVal(map[string]cty.Value{
+				"string": cty.StringVal(""),
+			}),
+			Dst: cty.ObjectVal(map[string]cty.Value{
+				"string": cty.NullVal(cty.String),
+			}),
+			Expect: cty.ObjectVal(map[string]cty.Value{
+				"string": cty.NullVal(cty.String),
+			}),
+			Plan: true,
+		},
+		{
+			// The null map is retained, because the src was unknown
+			Src: cty.ObjectVal(map[string]cty.Value{
+				"map": cty.UnknownVal(cty.Map(cty.String)),
+			}),
+			Dst: cty.ObjectVal(map[string]cty.Value{
+				"map": cty.NullVal(cty.Map(cty.String)),
+			}),
+			Expect: cty.ObjectVal(map[string]cty.Value{
+				"map": cty.NullVal(cty.Map(cty.String)),
+			}),
+		},
+		{
+			// the nul set is retained, because the src set contains an unknown value
+			Src: cty.ObjectVal(map[string]cty.Value{
+				"set": cty.SetVal([]cty.Value{
+					cty.ObjectVal(map[string]cty.Value{
+						"foo": cty.UnknownVal(cty.String),
+					}),
+				}),
+			}),
+			Dst: cty.ObjectVal(map[string]cty.Value{
+				"set": cty.NullVal(cty.Set(cty.Object(map[string]cty.Type{
+					"foo": cty.String,
+				}))),
+			}),
+			Expect: cty.ObjectVal(map[string]cty.Value{
+				"set": cty.NullVal(cty.Set(cty.Object(map[string]cty.Type{
+					"foo": cty.String,
+				}))),
+			}),
+		},
+		{
+			// Retain the zero value within the map
+			Src: cty.ObjectVal(map[string]cty.Value{
+				"map": cty.MapVal(map[string]cty.Value{
+					"a": cty.StringVal("a"),
+					"b": cty.StringVal(""),
+				}),
+			}),
+			Dst: cty.ObjectVal(map[string]cty.Value{
+				"map": cty.MapVal(map[string]cty.Value{
+					"a": cty.StringVal("a"),
+				}),
+			}),
+			Expect: cty.ObjectVal(map[string]cty.Value{
+				"map": cty.MapVal(map[string]cty.Value{
+					"a": cty.StringVal("a"),
+					"b": cty.StringVal(""),
+				}),
+			}),
+		},
+		{
+			// Retain don't re-add unexpected planned values in a map
+			Src: cty.ObjectVal(map[string]cty.Value{
+				"map": cty.MapVal(map[string]cty.Value{
+					"a": cty.StringVal("a"),
+					"b": cty.StringVal(""),
+				}),
+			}),
+			Dst: cty.ObjectVal(map[string]cty.Value{
+				"map": cty.MapVal(map[string]cty.Value{
+					"a": cty.StringVal("a"),
+				}),
+			}),
+			Expect: cty.ObjectVal(map[string]cty.Value{
+				"map": cty.MapVal(map[string]cty.Value{
+					"a": cty.StringVal("a"),
+				}),
+			}),
+			Plan: true,
+		},
+
+		// a list in an object in a list, going from null to empty
+		{
+			Src: cty.ObjectVal(map[string]cty.Value{
+				"network_interface": cty.ListVal([]cty.Value{
+					cty.ObjectVal(map[string]cty.Value{
+						"network_ip":    cty.UnknownVal(cty.String),
+						"access_config": cty.NullVal(cty.List(cty.Object(map[string]cty.Type{"public_ptr_domain_name": cty.String, "nat_ip": cty.String}))),
+						"address":       cty.NullVal(cty.String),
+						"name":          cty.StringVal("nic0"),
+					})}),
+			}),
+			Dst: cty.ObjectVal(map[string]cty.Value{
+				"network_interface": cty.ListVal([]cty.Value{
+					cty.ObjectVal(map[string]cty.Value{
+						"network_ip":    cty.StringVal("10.128.0.64"),
+						"access_config": cty.ListValEmpty(cty.Object(map[string]cty.Type{"public_ptr_domain_name": cty.String, "nat_ip": cty.String})),
+						"address":       cty.StringVal("address"),
+						"name":          cty.StringVal("nic0"),
+					}),
+				}),
+			}),
+			Expect: cty.ObjectVal(map[string]cty.Value{
+				"network_interface": cty.ListVal([]cty.Value{
+					cty.ObjectVal(map[string]cty.Value{
+						"network_ip":    cty.StringVal("10.128.0.64"),
+						"access_config": cty.NullVal(cty.List(cty.Object(map[string]cty.Type{"public_ptr_domain_name": cty.String, "nat_ip": cty.String}))),
+						"address":       cty.StringVal("address"),
+						"name":          cty.StringVal("nic0"),
+					}),
+				}),
+			}),
+		},
+
+		// a list in an object in a list, going from empty to null
+		{
+			Src: cty.ObjectVal(map[string]cty.Value{
+				"network_interface": cty.ListVal([]cty.Value{
+					cty.ObjectVal(map[string]cty.Value{
+						"network_ip":    cty.UnknownVal(cty.String),
+						"access_config": cty.ListValEmpty(cty.Object(map[string]cty.Type{"public_ptr_domain_name": cty.String, "nat_ip": cty.String})),
+						"address":       cty.NullVal(cty.String),
+						"name":          cty.StringVal("nic0"),
+					})}),
+			}),
+			Dst: cty.ObjectVal(map[string]cty.Value{
+				"network_interface": cty.ListVal([]cty.Value{
+					cty.ObjectVal(map[string]cty.Value{
+						"network_ip":    cty.StringVal("10.128.0.64"),
+						"access_config": cty.NullVal(cty.List(cty.Object(map[string]cty.Type{"public_ptr_domain_name": cty.String, "nat_ip": cty.String}))),
+						"address":       cty.StringVal("address"),
+						"name":          cty.StringVal("nic0"),
+					}),
+				}),
+			}),
+			Expect: cty.ObjectVal(map[string]cty.Value{
+				"network_interface": cty.ListVal([]cty.Value{
+					cty.ObjectVal(map[string]cty.Value{
+						"network_ip":    cty.StringVal("10.128.0.64"),
+						"access_config": cty.ListValEmpty(cty.Object(map[string]cty.Type{"public_ptr_domain_name": cty.String, "nat_ip": cty.String})),
+						"address":       cty.StringVal("address"),
+						"name":          cty.StringVal("nic0"),
+					}),
+				}),
+			}),
+		},
+		// the empty list should be transferred, but the new unknown show not be overridden
+		{
+			Src: cty.ObjectVal(map[string]cty.Value{
+				"network_interface": cty.ListVal([]cty.Value{
+					cty.ObjectVal(map[string]cty.Value{
+						"network_ip":    cty.StringVal("10.128.0.64"),
+						"access_config": cty.ListValEmpty(cty.Object(map[string]cty.Type{"public_ptr_domain_name": cty.String, "nat_ip": cty.String})),
+						"address":       cty.NullVal(cty.String),
+						"name":          cty.StringVal("nic0"),
+					})}),
+			}),
+			Dst: cty.ObjectVal(map[string]cty.Value{
+				"network_interface": cty.ListVal([]cty.Value{
+					cty.ObjectVal(map[string]cty.Value{
+						"network_ip":    cty.UnknownVal(cty.String),
+						"access_config": cty.NullVal(cty.List(cty.Object(map[string]cty.Type{"public_ptr_domain_name": cty.String, "nat_ip": cty.String}))),
+						"address":       cty.StringVal("address"),
+						"name":          cty.StringVal("nic0"),
+					}),
+				}),
+			}),
+			Expect: cty.ObjectVal(map[string]cty.Value{
+				"network_interface": cty.ListVal([]cty.Value{
+					cty.ObjectVal(map[string]cty.Value{
+						"network_ip":    cty.UnknownVal(cty.String),
+						"access_config": cty.ListValEmpty(cty.Object(map[string]cty.Type{"public_ptr_domain_name": cty.String, "nat_ip": cty.String})),
+						"address":       cty.StringVal("address"),
+						"name":          cty.StringVal("nic0"),
+					}),
+				}),
+			}),
+			Plan: true,
+		},
+	} {
+		t.Run(fmt.Sprintf("%d", i), func(t *testing.T) {
+			got := normalizeNullValues(tc.Dst, tc.Src, tc.Plan)
+			if !got.RawEquals(tc.Expect) {
+				t.Fatalf("\nexpected: %#v\ngot:      %#v\n", tc.Expect, got)
 			}
 		})
 	}

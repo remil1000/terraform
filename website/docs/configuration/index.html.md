@@ -8,7 +8,11 @@ description: |-
   written in the Terraform language.
 ---
 
-# Configuration
+# Configuration Language
+
+-> **Note:** This page is about Terraform 0.12 and later. For Terraform 0.11 and
+earlier, see
+[0.11 Configuration Language](../configuration-0-11/index.html).
 
 Terraform uses its own configuration language, designed to allow concise
 descriptions of infrastructure. The Terraform language is declarative,

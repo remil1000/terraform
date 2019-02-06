@@ -14,7 +14,6 @@ import (
 
 	"github.com/hashicorp/terraform/configs/configschema"
 	"github.com/hashicorp/terraform/helper/copy"
-	"github.com/hashicorp/terraform/plugin"
 	"github.com/hashicorp/terraform/plugin/discovery"
 	"github.com/hashicorp/terraform/providers"
 	"github.com/hashicorp/terraform/terraform"
@@ -801,14 +800,14 @@ func TestImport_pluginDir(t *testing.T) {
 	initCmd := &InitCommand{
 		Meta: Meta{
 			pluginPath: []string{"./plugins"},
-			Ui:         new(cli.MockUi),
+			Ui:         cli.NewMockUi(),
 		},
 		providerInstaller: &discovery.ProviderInstaller{
-			PluginProtocolVersion: plugin.Handshake.ProtocolVersion,
+			PluginProtocolVersion: discovery.PluginInstallProtocolVersion,
 		},
 	}
-	if err := initCmd.getProviders(".", nil, false); err != nil {
-		t.Fatal(err)
+	if code := initCmd.Run(nil); code != 0 {
+		t.Fatal(initCmd.Meta.Ui.(*cli.MockUi).ErrorWriter.String())
 	}
 
 	args := []string{

@@ -3,6 +3,7 @@ package jsonstate
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 
 	"github.com/zclconf/go-cty/cty"
 	ctyjson "github.com/zclconf/go-cty/cty/json"
@@ -10,6 +11,7 @@ import (
 	"github.com/hashicorp/terraform/addrs"
 	"github.com/hashicorp/terraform/configs/configschema"
 	"github.com/hashicorp/terraform/states"
+	"github.com/hashicorp/terraform/states/statefile"
 	"github.com/hashicorp/terraform/terraform"
 )
 
@@ -21,8 +23,9 @@ const FormatVersion = "0.1"
 // state is the top-level representation of the json format of a terraform
 // state.
 type state struct {
-	FormatVersion string      `json:"format_version,omitempty"`
-	Values        stateValues `json:"values,omitempty"`
+	FormatVersion    string      `json:"format_version,omitempty"`
+	TerraformVersion string      `json:"terraform_version"`
+	Values           stateValues `json:"values,omitempty"`
 }
 
 // stateValues is the common representation of resolved values for both the prior
@@ -33,13 +36,15 @@ type stateValues struct {
 }
 
 type output struct {
-	Sensitive bool            `json:"sensitive,omitempty"`
+	Sensitive bool            `json:"sensitive"`
 	Value     json.RawMessage `json:"value,omitempty"`
 }
 
 // module is the representation of a module in state. This can be the root module
 // or a child module
 type module struct {
+	// Resources are sorted in a user-friendly order that is undefined at this
+	// time, but consistent.
 	Resources []resource `json:"resources,omitempty"`
 
 	// Address is the absolute module address, omitted for the root module
@@ -72,7 +77,7 @@ type resource struct {
 
 	// SchemaVersion indicates which version of the resource type schema the
 	// "values" property conforms to.
-	SchemaVersion uint64 `json:"schema_version,omitempty"`
+	SchemaVersion uint64 `json:"schema_version"`
 
 	// AttributeValues is the JSON representation of the attribute values of the
 	// resource, whose structure depends on the resource type schema. Any
@@ -86,12 +91,16 @@ type resource struct {
 type attributeValues map[string]interface{}
 
 func marshalAttributeValues(value cty.Value, schema *configschema.Block) attributeValues {
+	if value == cty.NilVal {
+		return nil
+	}
 	ret := make(attributeValues)
 
 	it := value.ElementIterator()
 	for it.Next() {
 		k, v := it.Element()
-		ret[k.AsString()] = v
+		vJSON, _ := ctyjson.Marshal(v, v.Type())
+		ret[k.AsString()] = json.RawMessage(vJSON)
 	}
 	return ret
 }
@@ -103,21 +112,23 @@ func newState() *state {
 	}
 }
 
-// Marshal returns the json encoding of a terraform plan.
-func Marshal(s *states.State, schemas *terraform.Schemas) ([]byte, error) {
-	if s.Empty() {
+// Marshal returns the json encoding of a terraform state.
+func Marshal(sf *statefile.File, schemas *terraform.Schemas) ([]byte, error) {
+	if sf == nil || sf.State.Empty() {
 		return nil, nil
 	}
 
 	output := newState()
-
+	if sf.TerraformVersion != nil {
+		output.TerraformVersion = sf.TerraformVersion.String()
+	}
 	// output.StateValues
-	err := output.marshalStateValues(s, schemas)
+	err := output.marshalStateValues(sf.State, schemas)
 	if err != nil {
 		return nil, err
 	}
 
-	ret, err := json.Marshal(output)
+	ret, err := json.MarshalIndent(output, "", "  ")
 	return ret, err
 }
 
@@ -229,7 +240,7 @@ func marshalResources(resources map[string]*states.Resource, schemas *terraform.
 				Address:      r.Addr.String(),
 				Type:         r.Addr.Type,
 				Name:         r.Addr.Name,
-				ProviderName: r.ProviderConfig.ProviderConfig.String(),
+				ProviderName: r.ProviderConfig.ProviderConfig.StringCompact(),
 			}
 
 			switch r.Addr.Mode {
@@ -269,6 +280,10 @@ func marshalResources(resources map[string]*states.Resource, schemas *terraform.
 		}
 
 	}
+
+	sort.Slice(ret, func(i, j int) bool {
+		return ret[i].Address < ret[j].Address
+	})
 
 	return ret, nil
 }

@@ -203,6 +203,18 @@ func TestCheckProtocolVersions(t *testing.T) {
 			},
 			false,
 		},
+		{
+			&response.TerraformProviderVersion{
+				Protocols: []string{"4.0", "5.2"},
+			},
+			false,
+		},
+		{
+			&response.TerraformProviderVersion{
+				Protocols: []string{"5.0", "6.1"},
+			},
+			true,
+		},
 	}
 
 	server := testReleaseServer()
@@ -216,10 +228,170 @@ func TestCheckProtocolVersions(t *testing.T) {
 			if err == nil {
 				t.Fatal("succeeded; want error")
 			}
-			return
 		} else if err != nil {
 			t.Fatalf("unexpected error: %s", err)
 		}
+	}
+}
+
+func TestFindClosestProtocolCompatibleVersion(t *testing.T) {
+	testCases := []struct {
+		Name                  string
+		PluginProtocolVersion uint
+		ProviderVersions      []*response.TerraformProviderVersion
+		ExpectedVersion       string
+		Err                   bool
+	}{
+		{
+			"no compatible version",
+			5,
+			[]*response.TerraformProviderVersion{
+				&response.TerraformProviderVersion{
+					Version:   "1.0.0",
+					Protocols: []string{"4.0"},
+				},
+			},
+			"",
+			true,
+		}, {
+			"equal, suggests latest",
+			4,
+			[]*response.TerraformProviderVersion{
+				&response.TerraformProviderVersion{
+					Version:   "1.0.0",
+					Protocols: []string{"4.0"},
+				},
+				&response.TerraformProviderVersion{
+					Version:   "1.5.0",
+					Protocols: []string{"4.0"},
+				},
+			},
+			"1.5.0",
+			false,
+		}, {
+			"provider protocol too old, suggests earliest",
+			5,
+			[]*response.TerraformProviderVersion{
+				&response.TerraformProviderVersion{
+					Version:   "1.0.0",
+					Protocols: []string{"4.0"},
+				},
+				&response.TerraformProviderVersion{
+					Version:   "2.0.0",
+					Protocols: []string{"4.0", "5.0"},
+				},
+				&response.TerraformProviderVersion{
+					Version:   "2.5.0",
+					Protocols: []string{"4.0", "5.0"},
+				},
+				&response.TerraformProviderVersion{
+					Version:   "3.0.0",
+					Protocols: []string{"5.0"},
+				},
+			},
+			"2.0.0",
+			false,
+		}, {
+			"provider protocol too new, suggests latest",
+			4,
+			[]*response.TerraformProviderVersion{
+				&response.TerraformProviderVersion{
+					Version:   "1.0.0",
+					Protocols: []string{"4.0"},
+				},
+				&response.TerraformProviderVersion{
+					Version:   "2.0.0",
+					Protocols: []string{"4.0", "5.0"},
+				},
+				&response.TerraformProviderVersion{
+					Version:   "2.5.0",
+					Protocols: []string{"4.0", "5.0"},
+				},
+				&response.TerraformProviderVersion{
+					Version:   "3.0.0",
+					Protocols: []string{"5.0"},
+				},
+			},
+			"2.5.0",
+			false,
+		}, {
+			"compatible prereleses are filtered",
+			5,
+			[]*response.TerraformProviderVersion{
+				&response.TerraformProviderVersion{
+					Version:   "2.0.0-alpha",
+					Protocols: []string{"4.0", "5.0"},
+				},
+			},
+			"",
+			true,
+		}, {
+			"suggests latest non-prerelease",
+			4,
+			[]*response.TerraformProviderVersion{
+				&response.TerraformProviderVersion{
+					Version:   "2.0.0-alpha",
+					Protocols: []string{"4.0", "5.0"},
+				},
+				&response.TerraformProviderVersion{
+					Version:   "2.0.0",
+					Protocols: []string{"4.0", "5.0"},
+				},
+				&response.TerraformProviderVersion{
+					Version:   "2.5.0-pre",
+					Protocols: []string{"4.0", "5.0"},
+				},
+				&response.TerraformProviderVersion{
+					Version:   "2.5.0",
+					Protocols: []string{"4.0", "5.0"},
+				},
+			},
+			"2.5.0",
+			false,
+		}, {
+			"suggests earliest non-prerelease",
+			5,
+			[]*response.TerraformProviderVersion{
+				&response.TerraformProviderVersion{
+					Version:   "2.0.0-alpha",
+					Protocols: []string{"4.0", "5.0"},
+				},
+				&response.TerraformProviderVersion{
+					Version:   "2.0.0",
+					Protocols: []string{"4.0", "5.0"},
+				},
+				&response.TerraformProviderVersion{
+					Version:   "2.6.0",
+					Protocols: []string{"4.0", "5.0"},
+				},
+				&response.TerraformProviderVersion{
+					Version:   "3.0.0",
+					Protocols: []string{"5.0"},
+				},
+			},
+			"2.0.0",
+			false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.Name, func(t *testing.T) {
+			i := ProviderInstaller{
+				Ui:                    cli.NewMockUi(),
+				PluginProtocolVersion: tc.PluginProtocolVersion,
+			}
+
+			closestMatch, err := i.findClosestProtocolCompatibleVersion(tc.ProviderVersions)
+			if err != nil {
+				if !tc.Err {
+					t.Fatalf("unexpected error: %q", err)
+				}
+				return
+			}
+			if tc.ExpectedVersion != closestMatch.Version {
+				t.Errorf("Expected %q, got %q", tc.ExpectedVersion, closestMatch.Version)
+			}
+		})
 	}
 }
 
@@ -456,9 +628,10 @@ func TestProviderChecksum(t *testing.T) {
 // newProviderInstaller returns a minimally-initialized ProviderInstaller
 func newProviderInstaller(s *httptest.Server) ProviderInstaller {
 	return ProviderInstaller{
-		registry: registry.NewClient(Disco(s), nil),
-		OS:       runtime.GOOS,
-		Arch:     runtime.GOARCH,
+		registry:              registry.NewClient(Disco(s), nil),
+		OS:                    runtime.GOOS,
+		Arch:                  runtime.GOARCH,
+		PluginProtocolVersion: 4,
 	}
 }
 

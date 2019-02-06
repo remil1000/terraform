@@ -3,12 +3,14 @@ package jsonconfig
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
+
+	"github.com/zclconf/go-cty/cty"
 
 	"github.com/hashicorp/terraform/addrs"
 	"github.com/hashicorp/terraform/configs"
 	"github.com/hashicorp/terraform/configs/configschema"
 	"github.com/hashicorp/terraform/terraform"
-	"github.com/zclconf/go-cty/cty"
 )
 
 // Config represents the complete configuration source
@@ -29,16 +31,18 @@ type providerConfig struct {
 }
 
 type module struct {
-	Outputs     map[string]configOutput `json:"outputs,omitempty"`
-	Resources   []resource              `json:"resources,omitempty"`
-	ModuleCalls []moduleCall            `json:"module_calls,omitempty"`
+	Outputs map[string]configOutput `json:"outputs,omitempty"`
+	// Resources are sorted in a user-friendly order that is undefined at this
+	// time, but consistent.
+	Resources   []resource            `json:"resources,omitempty"`
+	ModuleCalls map[string]moduleCall `json:"module_calls,omitempty"`
 }
 
 type moduleCall struct {
 	ResolvedSource    string                 `json:"resolved_source,omitempty"`
 	Expressions       map[string]interface{} `json:"expressions,omitempty"`
-	CountExpression   expression             `json:"count_expression,omitempty"`
-	ForEachExpression expression             `json:"for_each_expression,omitempty"`
+	CountExpression   *expression            `json:"count_expression,omitempty"`
+	ForEachExpression *expression            `json:"for_each_expression,omitempty"`
 	Module            module                 `json:"module,omitempty"`
 }
 
@@ -72,8 +76,8 @@ type resource struct {
 	// CountExpression and ForEachExpression describe the expressions given for
 	// the corresponding meta-arguments in the resource configuration block.
 	// These are omitted if the corresponding argument isn't set.
-	CountExpression   expression `json:"count_expression,omitempty"`
-	ForEachExpression expression `json:"for_each_expression,omitempty"`
+	CountExpression   *expression `json:"count_expression,omitempty"`
+	ForEachExpression *expression `json:"for_each_expression,omitempty"`
 }
 
 type configOutput struct {
@@ -82,7 +86,7 @@ type configOutput struct {
 }
 
 type provisioner struct {
-	Name        string                 `json:"name,omitempty"`
+	Type        string                 `json:"type,omitempty"`
 	Expressions map[string]interface{} `json:"expressions,omitempty"`
 }
 
@@ -113,9 +117,9 @@ func marshalProviderConfigs(
 		return
 	}
 
-	for _, pc := range c.Module.ProviderConfigs {
+	for k, pc := range c.Module.ProviderConfigs {
 		schema := schemas.ProviderConfig(pc.Name)
-		m[pc.Name] = providerConfig{
+		m[k] = providerConfig{
 			Name:          pc.Name,
 			Alias:         pc.Alias,
 			ModuleAddress: c.Path.String(),
@@ -157,37 +161,39 @@ func marshalModule(c *configs.Config, schemas *terraform.Schemas) (module, error
 	return module, nil
 }
 
-func marshalModuleCalls(c *configs.Config, schemas *terraform.Schemas) []moduleCall {
-	var ret []moduleCall
-	for _, v := range c.Module.ModuleCalls {
-		mc := moduleCall{
-			ResolvedSource: v.SourceAddr,
+func marshalModuleCalls(c *configs.Config, schemas *terraform.Schemas) map[string]moduleCall {
+	ret := make(map[string]moduleCall)
+	for _, mc := range c.Module.ModuleCalls {
+		retMC := moduleCall{
+			ResolvedSource: mc.SourceAddr,
 		}
-		cExp := marshalExpression(v.Count)
+		cExp := marshalExpression(mc.Count)
 		if !cExp.Empty() {
-			mc.CountExpression = cExp
+			retMC.CountExpression = &cExp
 		} else {
-			fExp := marshalExpression(v.ForEach)
+			fExp := marshalExpression(mc.ForEach)
 			if !fExp.Empty() {
-				mc.ForEachExpression = fExp
+				retMC.ForEachExpression = &fExp
 			}
 		}
 
+		// get the called module's variables so we can build up the expressions
+		childModule := c.Children[mc.Name]
 		schema := &configschema.Block{}
 		schema.Attributes = make(map[string]*configschema.Attribute)
-		for _, variable := range c.Module.Variables {
+		for _, variable := range childModule.Module.Variables {
 			schema.Attributes[variable.Name] = &configschema.Attribute{
 				Required: variable.Default == cty.NilVal,
 			}
 		}
-		mc.Expressions = marshalExpressions(v.Config, schema)
+
+		retMC.Expressions = marshalExpressions(mc.Config, schema)
 
 		for _, cc := range c.Children {
 			childModule, _ := marshalModule(cc, schemas)
-			mc.Module = childModule
+			retMC.Module = childModule
 		}
-		ret = append(ret, mc)
-
+		ret[mc.Name] = retMC
 	}
 
 	return ret
@@ -215,16 +221,23 @@ func marshalResources(resources map[string]*configs.Resource, schemas *terraform
 
 		cExp := marshalExpression(v.Count)
 		if !cExp.Empty() {
-			r.CountExpression = cExp
+			r.CountExpression = &cExp
 		} else {
 			fExp := marshalExpression(v.ForEach)
 			if !fExp.Empty() {
-				r.ForEachExpression = fExp
+				r.ForEachExpression = &fExp
 			}
 		}
 
-		schema, schemaVersion := schemas.ResourceTypeConfig(v.ProviderConfigAddr().String(), v.Mode, v.Type)
-		r.SchemaVersion = schemaVersion
+		schema, schemaVer := schemas.ResourceTypeConfig(
+			v.ProviderConfigAddr().StringCompact(),
+			v.Mode,
+			v.Type,
+		)
+		if schema == nil {
+			return nil, fmt.Errorf("no schema found for %s", v.Addr().String())
+		}
+		r.SchemaVersion = schemaVer
 
 		r.Expressions = marshalExpressions(v.Config, schema)
 
@@ -234,7 +247,7 @@ func marshalResources(resources map[string]*configs.Resource, schemas *terraform
 			for _, p := range v.Managed.Provisioners {
 				schema := schemas.ProvisionerConfig(p.Type)
 				prov := provisioner{
-					Name:        p.Type,
+					Type:        p.Type,
 					Expressions: marshalExpressions(p.Config, schema),
 				}
 				provisioners = append(provisioners, prov)
@@ -244,5 +257,8 @@ func marshalResources(resources map[string]*configs.Resource, schemas *terraform
 
 		rs = append(rs, r)
 	}
+	sort.Slice(rs, func(i, j int) bool {
+		return rs[i].Address < rs[j].Address
+	})
 	return rs, nil
 }

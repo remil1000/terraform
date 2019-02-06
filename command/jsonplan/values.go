@@ -3,14 +3,15 @@ package jsonplan
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 
 	"github.com/zclconf/go-cty/cty"
+	ctyjson "github.com/zclconf/go-cty/cty/json"
 
 	"github.com/hashicorp/terraform/addrs"
 	"github.com/hashicorp/terraform/configs/configschema"
 	"github.com/hashicorp/terraform/plans"
 	"github.com/hashicorp/terraform/terraform"
-	ctyjson "github.com/zclconf/go-cty/cty/json"
 )
 
 // stateValues is the common representation of resolved values for both the
@@ -25,19 +26,22 @@ type stateValues struct {
 type attributeValues map[string]interface{}
 
 func marshalAttributeValues(value cty.Value, schema *configschema.Block) attributeValues {
+	if value == cty.NilVal {
+		return nil
+	}
 	ret := make(attributeValues)
 
 	it := value.ElementIterator()
 	for it.Next() {
 		k, v := it.Element()
-		ret[k.AsString()] = v
+		vJSON, _ := ctyjson.Marshal(v, v.Type())
+		ret[k.AsString()] = json.RawMessage(vJSON)
 	}
 	return ret
 }
 
-// marshalPlannedOutputs takes a list of changes and returns two output maps,
-// the former with output values and the latter with true/false in place of
-// values indicating whether the values are known at plan time.
+// marshalPlannedOutputs takes a list of changes and returns a map of output
+// values
 func marshalPlannedOutputs(changes *plans.Changes) (map[string]output, error) {
 	if changes.Outputs == nil {
 		// No changes - we're done here!
@@ -78,9 +82,6 @@ func marshalPlannedOutputs(changes *plans.Changes) (map[string]output, error) {
 
 func marshalPlannedValues(changes *plans.Changes, schemas *terraform.Schemas) (module, error) {
 	var ret module
-	if changes.Empty() {
-		return ret, nil
-	}
 
 	// build two maps:
 	// 		module name -> [resource addresses]
@@ -118,15 +119,13 @@ func marshalPlannedValues(changes *plans.Changes, schemas *terraform.Schemas) (m
 	return ret, nil
 }
 
-// marshalPlannedValues returns two resource slices:
-// The former has attribute values populated and the latter has true/false in
-// place of values indicating whether the values are known at plan time.
+// marshalPlanResources
 func marshalPlanResources(changes *plans.Changes, ris []addrs.AbsResourceInstance, schemas *terraform.Schemas) ([]resource, error) {
 	var ret []resource
 
 	for _, ri := range ris {
 		r := changes.ResourceInstance(ri)
-		if r.Action == plans.Delete || r.Action == plans.NoOp {
+		if r.Action == plans.Delete {
 			continue
 		}
 
@@ -172,6 +171,10 @@ func marshalPlanResources(changes *plans.Changes, ris []addrs.AbsResourceInstanc
 
 		ret = append(ret, resource)
 	}
+
+	sort.Slice(ret, func(i, j int) bool {
+		return ret[i].Address < ret[j].Address
+	})
 
 	return ret, nil
 }
